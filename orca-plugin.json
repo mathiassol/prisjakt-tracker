@@ -3,7 +3,7 @@
   "manifestVersion": 2,
   "id": "prisjakt-tracker",
   "name": "Prisjakt Tracker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Track Prisjakt and PriceSpy products from Orca's sidebar: search or paste a link, see every item's price history at a glance, set target prices and get notified when they drop. Not affiliated with Prisjakt.",
   "author": {
     "name": "mathiassol",

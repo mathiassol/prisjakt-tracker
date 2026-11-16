@@ -3,7 +3,7 @@ import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { offerList, priceHistory, productPage, searchSuggestions } from './fixtures/index'
 import { categoryFromHtml, productNameFromHtml } from './prisjakt'
 import * as main from './worker'
-import { notificationsFor, migrate } from './worker'
+import { notificationsFor, migrate, thinHistory } from './worker'
 import type { TrackedItem } from './protocol'
 
 type Call = { url: string; method: string; body?: string }
@@ -163,4 +163,31 @@ test('notifications fire once per price and reset when the price goes back up', 
   assert.equal(item.notified.target, null)
   item.price = 950
   assert.equal(notificationsFor(item, 1200, 900, opts).length, 1)
+})
+
+test('keeps each history under its own storage key and migrates 0.1.0 data', async () => {
+  const legacy = migrate({ id: 777, host: 'www.prisjakt.no', name: 'Old', price: 100, history: [[1, 120], [2, 100]] } as unknown as TrackedItem)
+  const host = mockHost({ storage: { items: [legacy] as never } })
+  const worker = await mountWorker(main, { host })
+  assert.equal((await worker.request('state.get')).items[0].history.length, 2)
+  await worker.request('item.add', { ref: PRODUCT_URL })
+  const stored = host.data().storage as Record<string, unknown>
+  assert.ok((stored.items as TrackedItem[]).every((i) => i.history.length === 0))
+  assert.ok(Array.isArray(stored['hist:www.prisjakt.no:13083153']))
+  assert.deepEqual(stored['hist:www.prisjakt.no:777'], [[1, 120], [2, 100]])
+  await worker.request('item.remove', { id: 777, host: 'www.prisjakt.no' })
+  assert.equal((host.data().storage as Record<string, unknown>)['hist:www.prisjakt.no:777'], undefined)
+  await worker.deactivate()
+})
+
+test('thinning keeps recent points and the extremes', () => {
+  const day = 86_400_000
+  const now = 1000 * day
+  const h = Array.from({ length: 900 }, (_, i) => [i * day, 500 + (i % 7) * 10] as [number, number])
+  h[100] = [100 * day, 50]
+  h[200] = [200 * day, 9000]
+  const thin = thinHistory(h, now)
+  assert.ok(thin.length < 400)
+  assert.ok(thin.some((p) => p[1] === 50) && thin.some((p) => p[1] === 9000))
+  assert.equal(thin.filter((p) => p[0] >= now - 400 * day).length, h.filter((p) => p[0] >= now - 400 * day).length)
 })

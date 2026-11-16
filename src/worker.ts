@@ -16,10 +16,11 @@ import {
   withObservation
 } from '../panel/core.js'
 import { createClient, PrisjaktError, type Client, type Fetch } from './prisjakt'
-import type { Detail, ItemPatch, Offer, TrackedItem, TrackerState } from './protocol'
+import type { Detail, ItemPatch, Offer, PricePoint, TrackedItem, TrackerState } from './protocol'
 
 const ITEMS = 'items'
 const LAST_REFRESH = 'lastRefresh'
+const HIST = 'hist:'
 const HOUR = 3_600_000
 const MAX_ITEMS = 200
 const GAP_MS = 700
@@ -46,12 +47,45 @@ export default function activate(orca: OrcaWorkerApi): void {
     queue = run.catch(() => undefined)
     return run
   }
+  // Orca stores at most 256 KiB per key, so the list keeps only metadata and each product's
+  // history lives under its own `hist:<host>:<id>` key. The worker is the only writer, so a
+  // cache of what it last read or wrote is always current.
+  const histCache = new Map<string, PricePoint[]>()
+  async function historyOf(key: string): Promise<PricePoint[]> {
+    const cached = histCache.get(key)
+    if (cached) return cached
+    const value = await orca.storage.get(HIST + key)
+    const list = Array.isArray(value) ? (value as unknown as PricePoint[]) : []
+    histCache.set(key, list)
+    return list
+  }
   async function loadItems(): Promise<TrackedItem[]> {
     const value = await orca.storage.get(ITEMS)
-    return Array.isArray(value) ? (value as unknown as TrackedItem[]).map(migrate) : []
+    const items = Array.isArray(value) ? (value as unknown as TrackedItem[]).map(migrate) : []
+    await Promise.all(
+      items.map(async (item) => {
+        // Items written by 0.1.0 still carry their history inline: keep it, saveItems moves it out.
+        if (!item.history.length) item.history = await historyOf(keyOf(item))
+      })
+    )
+    return items
   }
   async function saveItems(items: TrackedItem[]) {
-    await orca.storage.set(ITEMS, items as never)
+    const keep = new Set(items.map(keyOf))
+    for (const item of items) {
+      const key = keyOf(item)
+      if (histCache.get(key) !== item.history) {
+        await orca.storage.set(HIST + key, item.history as never)
+        histCache.set(key, item.history)
+      }
+    }
+    await orca.storage.set(ITEMS, items.map((item) => ({ ...item, history: [] })) as never)
+    for (const key of [...histCache.keys()]) {
+      if (!keep.has(key)) {
+        histCache.delete(key)
+        await orca.storage.delete(HIST + key).catch(() => undefined)
+      }
+    }
   }
   function mutate<T>(fn: (items: TrackedItem[]) => T | Promise<T>): Promise<T> {
     return serial(async () => {
@@ -86,7 +120,9 @@ export default function activate(orca: OrcaWorkerApi): void {
       setting('dropThreshold', 1)
     ])
     return {
-      items,
+      // The list only needs the last year in detail; older points are thinned (keeping the
+      // all-time low and high) so the answer stays small with hundreds of products.
+      items: items.map((item) => ({ ...item, history: thinHistory(item.history) })),
       refreshing: !!refreshing,
       lastRefresh: typeof lastRefresh === 'number' ? lastRefresh : null,
       market: normalizeHost(market) ?? DEFAULT_HOST,
@@ -448,6 +484,29 @@ export function notificationsFor(
   if (opts.notifyAnyDrop && drop != null && drop <= -Math.max(opts.threshold, 0.0001) && item.notified.drop !== price && !out.length) {
     out.push({ title: `▼ ${formatPct(drop)}: ${money}`, body: `${name} dropped from ${formatPrice(before, item.host)}` })
     item.notified.drop = price
+  }
+  return out
+}
+
+/** Keeps every point of the last `recentDays`, at most one a week before that, and always the extremes. */
+export function thinHistory(history: PricePoint[], now = Date.now(), recentDays = 400): PricePoint[] {
+  if (history.length <= 120) return history
+  const cutoff = now - recentDays * 86_400_000
+  let low: PricePoint | null = null
+  let high: PricePoint | null = null
+  for (const p of history) {
+    if (p[1] == null) continue
+    if (!low || p[1] < low[1]!) low = p
+    if (!high || p[1] > high[1]!) high = p
+  }
+  const out: PricePoint[] = []
+  let lastKept = -Infinity
+  for (const p of history) {
+    const keep = p[0] >= cutoff || p === low || p === high || p[0] - lastKept >= 7 * 86_400_000
+    if (keep) {
+      out.push(p)
+      lastKept = p[0]
+    }
   }
   return out
 }

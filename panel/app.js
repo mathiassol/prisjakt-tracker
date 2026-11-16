@@ -543,11 +543,14 @@ async function loadOffers(item, force = false) {
   if (!force && ui.offers.has(key) && !ui.offers.get(key).error && Date.now() - ui.offers.get(key).fetchedAt < 5 * 60_000) return
   try {
     const d = await request('item.detail', { id: item.id, host: item.host })
-    ui.offers.set(key, { offers: d.offers, fetchedAt: d.fetchedAt })
+    ui.offers.set(key, { offers: d.offers, fetchedAt: d.fetchedAt, history: d.history })
   } catch (e) {
     ui.offers.set(key, { error: e?.message ?? String(e), fetchedAt: Date.now() })
   }
-  if (ui.detailKey === key) renderDetailSection('offers')
+  if (ui.detailKey === key) {
+    renderDetailSection('offers')
+    renderDetailSection('chart')
+  }
 }
 
 let detailQueued = false
@@ -696,7 +699,10 @@ function rangeStart(item, now) {
   return now - days * DAY
 }
 
-function drawChart(el, item) {
+function drawChart(el, listItem) {
+  // The list carries a thinned history; the detail request brings every point.
+  const full = ui.offers.get(keyOf(listItem))?.history
+  const item = full?.length ? { ...listItem, history: full } : listItem
   const now = Date.now()
   const from = Math.max(rangeStart(item, now), item.history.length ? item.history[0][0] : -Infinity)
   const series = seriesInRange(item.history, from, now)
