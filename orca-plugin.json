@@ -1,0 +1,131 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "id": "prisjakt-tracker",
+  "name": "Prisjakt Tracker",
+  "version": "0.1.0",
+  "description": "Track Prisjakt and PriceSpy products from Orca's sidebar: search or paste a link, see every item's price history at a glance, set target prices and get notified when they drop. Not affiliated with Prisjakt.",
+  "author": {
+    "name": "mathiassol",
+    "url": "https://github.com/mathiassol"
+  },
+  "repository": "https://github.com/mathiassol/prisjakt-tracker",
+  "license": "MIT",
+  "homepage": "https://github.com/mathiassol/prisjakt-tracker",
+  "icon": "images/icon.png",
+  "cover": {
+    "path": "images/cover.png",
+    "alt": "Prisjakt Tracker in Orca's sidebar: tracked products with prices and sparklines, beside one product's price chart, target and shops"
+  },
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "capabilities": [
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "notifications:show"
+    }
+  ],
+  "contributes": {
+    "panels": [
+      {
+        "id": "tracker",
+        "title": "Price Tracker",
+        "icon": "bar-chart-3",
+        "entry": "panel/index.html",
+        "ui": "html"
+      }
+    ],
+    "commands": [
+      {
+        "id": "prisjakt.refresh",
+        "title": "Prisjakt: Refresh all prices"
+      },
+      {
+        "id": "prisjakt.summary",
+        "title": "Prisjakt: Show price summary"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "drops",
+        "icon": "bar-chart-3",
+        "text": "Prices",
+        "tooltip": "Prisjakt Tracker — click to refresh",
+        "command": "prisjakt.refresh"
+      }
+    ],
+    "settings": [
+      {
+        "key": "market",
+        "title": "Market",
+        "description": "Which Prisjakt / PriceSpy site search uses. Pasted links keep their own site.",
+        "type": "string",
+        "default": "www.prisjakt.no",
+        "enum": [
+          "www.prisjakt.no",
+          "www.prisjakt.nu",
+          "prisjagt.dk",
+          "hintaopas.fi",
+          "pricespy.co.uk",
+          "pricespy.co.nz"
+        ],
+        "enumLabels": [
+          "Prisjakt Norge (prisjakt.no)",
+          "Prisjakt Sverige (prisjakt.nu)",
+          "Prisjagt Danmark (prisjagt.dk)",
+          "Hintaopas Suomi (hintaopas.fi)",
+          "PriceSpy UK (pricespy.co.uk)",
+          "PriceSpy NZ (pricespy.co.nz)"
+        ]
+      },
+      {
+        "key": "refreshHours",
+        "title": "Refresh every (hours)",
+        "description": "How often prices are checked in the background while Orca runs.",
+        "type": "number",
+        "default": 4,
+        "minimum": 1,
+        "maximum": 48
+      },
+      {
+        "key": "notifyTarget",
+        "title": "Notify at target price",
+        "description": "A desktop notification when an item reaches the target price you set on it.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "notifyLowest",
+        "title": "Notify on new all-time low",
+        "description": "A desktop notification when an item is cheaper than it has ever been.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "notifyAnyDrop",
+        "title": "Notify on every price drop",
+        "description": "A desktop notification whenever any tracked item gets cheaper.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "dropThreshold",
+        "title": "Ignore drops smaller than (%)",
+        "description": "Price drops below this percentage are not highlighted or notified.",
+        "type": "number",
+        "default": 1,
+        "minimum": 0,
+        "maximum": 50
+      }
+    ]
+  }
+}

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Price Tracker</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- List view -->
+      <section id="list-view" class="view">
+        <header class="top">
+          <div class="search" id="search">
+            <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5 14 14" /></svg>
+            <input
+              id="search-input"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Search Prisjakt or paste a link…"
+              aria-label="Search Prisjakt or paste a product link"
+              aria-autocomplete="list"
+              aria-controls="suggestions"
+            />
+            <kbd class="hint" id="search-hint">/</kbd>
+            <button class="icon-btn clear" id="search-clear" aria-label="Clear" hidden>
+              <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+            </button>
+            <div class="suggestions" id="suggestions" role="listbox" hidden></div>
+          </div>
+          <button class="icon-btn" id="refresh-btn" aria-label="Refresh all prices" title="Refresh all prices (R)">
+            <svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" /><path d="M13.5 2.5v3h-3" /></svg>
+          </button>
+          <button class="icon-btn" id="menu-btn" aria-label="More" aria-haspopup="menu" title="More">
+            <svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.1" /><circle cx="8" cy="8" r="1.1" /><circle cx="12.5" cy="8" r="1.1" /></svg>
+          </button>
+          <div class="menu" id="menu" role="menu" hidden>
+            <button role="menuitem" data-action="bulk">Add several links…</button>
+            <button role="menuitem" data-action="seen">Mark all as seen</button>
+            <button role="menuitem" data-action="density">Compact rows</button>
+            <hr />
+            <button role="menuitem" data-action="export-json">Export backup (.json)</button>
+            <button role="menuitem" data-action="export-csv">Export prices (.csv)</button>
+            <button role="menuitem" data-action="import">Import backup…</button>
+          </div>
+        </header>
+
+        <div class="progress" id="progress" hidden><div class="bar"></div></div>
+
+        <div class="toolbar" id="toolbar" hidden>
+          <div class="chips" role="tablist" aria-label="Filter">
+            <button class="chip" role="tab" data-filter="all" aria-selected="true">All <span class="count" data-count="all"></span></button>
+            <button class="chip" role="tab" data-filter="drops">Drops <span class="count" data-count="drops"></span></button>
+            <button class="chip" role="tab" data-filter="target">Target <span class="count" data-count="target"></span></button>
+            <button class="chip" role="tab" data-filter="low">Lows <span class="count" data-count="low"></span></button>
+          </div>
+          <label class="sort">
+            <span class="sr">Sort</span>
+            <select id="sort"></select>
+          </label>
+        </div>
+
+        <div class="filter-note" id="filter-note" hidden></div>
+        <main id="items" class="items" aria-label="Tracked products"></main>
+
+        <footer class="foot" id="foot" hidden>
+          <span id="updated"></span>
+          <span id="total"></span>
+        </footer>
+      </section>
+
+      <!-- Detail view -->
+      <section id="detail-view" class="view" hidden>
+        <header class="top detail-top">
+          <button class="icon-btn" id="back-btn" aria-label="Back" title="Back (Esc)">
+            <svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5" /></svg>
+          </button>
+          <div class="spacer"></div>
+          <button class="icon-btn" id="pin-btn" aria-label="Pin" title="Pin to top (P)">
+            <svg viewBox="0 0 16 16"><path d="M9.5 2.5 13.5 6.5 11 8 10.5 11 5 5.5 8 5z" /><path d="M5 11 2.5 13.5" /></svg>
+          </button>
+          <button class="icon-btn" id="copy-btn" aria-label="Copy link" title="Copy link">
+            <svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" /><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" /></svg>
+          </button>
+          <button class="icon-btn" id="open-btn" aria-label="Open on Prisjakt" title="Open on Prisjakt (O)">
+            <svg viewBox="0 0 16 16"><path d="M9 2.5h4.5V7" /><path d="M13.5 2.5 7.5 8.5" /><path d="M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" /></svg>
+          </button>
+          <button class="icon-btn danger" id="remove-btn" aria-label="Stop tracking" title="Stop tracking (Del)">
+            <svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-8.5" /></svg>
+          </button>
+        </header>
+        <div id="detail" class="detail" tabindex="-1"></div>
+      </section>
+    </div>
+
+    <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" hidden>
+      <h3 id="sheet-title"></h3>
+      <p id="sheet-text" class="muted"></p>
+      <textarea id="sheet-input" rows="6" spellcheck="false"></textarea>
+      <div class="sheet-actions">
+        <button class="btn ghost" id="sheet-cancel">Cancel</button>
+        <button class="btn primary" id="sheet-ok">Add</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+      <span id="toast-text"></span>
+      <button class="link" id="toast-action" hidden></button>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
